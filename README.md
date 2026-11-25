@@ -37,7 +37,7 @@ weights are not redistributed.
 
 ---
 
-## 2. 管线（四段，全部脚本化）
+## 2. 管线（五段，全部脚本化）
 
 ```
 单张立绘 (PNG/JPG，可带背景)
@@ -52,11 +52,38 @@ weights are not redistributed.
    │
    ├─[2.5] 双腿拆分    pipeline/auto_split_legs.py        ★ 全自动，无需手调参数
    │
-   └─[3] 绑定导出      pipeline/build_iki.py              ★ 通用，枢轴全部由 bbox 推导
+   ├─[3] 绑定导出      pipeline/build_iki.py              ★ 通用，枢轴全部由 bbox 推导
+   │
+   └─[3.5] warp 变形   pipeline/add_warp.py               ★ 布料/尾巴/长发换成网格弯曲
           → model.iki  → 网页播放器 / Android App
 ```
 
-★ 标记的三个脚本是**通用的**：换一张完全不同的立绘，不需要改代码、不需要改常量。
+★ 标记的四个脚本是**通用的**：换一张完全不同的立绘，不需要改代码、不需要改常量。
+
+### 为什么必须有 3.5 这一段
+
+iki 有两套 deformer，能力差一个量级：
+
+| 类型 | 能做什么 | 用在哪 |
+|---|---|---|
+| `kind:"matrix"` | pivot + translate/rotate/scale，**整体刚体** | 头、身体、四肢整体 |
+| `kind:"warp"` | 控制点网格 + 逐点 offsets，**逐点弯曲** | 裙子、尾巴、长发 |
+
+只用 matrix，裙子是**绕一个点转的木板**，尾巴是**被甩的棍子**，末端横移 `sin(角度)×长度`
+（±24°、300px ⇒ 122px），必然越出遮挡余量露洞。
+
+`add_warp.py` 把 `bottomwear` 从 matrix 换成 warp：网格覆盖整个 part、顶部靠曲线指数不动、
+底部按参数弯曲。实测 10×10 网格 / 摆幅 ±34px，参数从 +8 到 −8 时裙摆跟腰固定、下摆左右弯，
+形状是连续弧线。
+
+三个必守点（详见 `docs/04_known_issues.md` 第三节）：
+
+1. rest grid 的 **row 0 必须是最大 y**（+y 向上），传反直接校验失败
+2. keyform 的 **`value` 是参数 own-range 值**，不是归一化 —— 写 −1/0/1 而参数是 −8..8 ⇒ 只走 1/8 量程
+3. **网格密度决定切割感** —— 4×4 / 749px 宽每格 190px，折出硬棱；10×10 才是连续弧
+
+部署前先跑 `node validate_iki.mjs model.iki`（脚本见技能 `references/warp-deformers.md`）——
+warp 格式错在播放器里只表现成 `window.model === undefined`、画布空白，没有任何可读错误。
 
 ---
 
@@ -168,9 +195,25 @@ python pipeline/postprocess.py \
 # ⑥ 绑定
 python pipeline/build_iki.py out/mychar_split.psd out/mychar.iki "my character"
 
-# ⑦ 放进 Iki 播放器看效果
-cp out/mychar.iki <iki>/examples/player/public/model.iki
+# ⑦ 裙子换成 warp 网格变形（否则裙子是块木板在转）
+python pipeline/add_warp.py out/mychar.iki out/mychar_warp.iki
+
+# ⑧ 部署前校验格式（warp 格式错在播放器里只表现成画布空白）
+node validate_iki.mjs out/mychar_warp.iki
+
+# ⑨ 放进 Iki 播放器看效果
+cp out/mychar_warp.iki <iki>/examples/player/public/model.iki
 ```
+
+### 后处理里两个几何参数，只在对应问题出现时才用
+
+| 参数 | 用途 | 怎么定 |
+|---|---|---|
+| `--skirt-zone y0` | 裙子被劈进 `bottomwear` + `topwear` 两层，一半摆一半不摆 | 取腿 bbox 上缘（或腰线） |
+| `--sleeve-band x_sh,x_wr,y0,y1,half` | 袖子像素留在裙子层跟着裙子物理摆，用户读成「胳膊透明」 | 肩 x → 腕 x 线性插值，**y 上限取腕线**（别拖到裙摆区，否则会把裙子「保护」起来没归并） |
+
+两个都给「几何范围」而不是「颜色判据」：白女仆装的 `topwear`/`handwear`/`bottomwear`
+主色全是白的，按颜色根本选不出目标。
 
 ### 脚本清单
 
@@ -182,13 +225,14 @@ cp out/mychar.iki <iki>/examples/player/public/model.iki
 | `pipeline/postprocess.py` | 底膜清理、分区换色、合层、补洞、backdrop、语义层序 | 不 |
 | `pipeline/auto_split_legs.py` | 双腿自动拆分（保留原抗锯齿） | 不 |
 | `pipeline/build_iki.py` | PSD → `.iki`：枢轴全自动、物理参数表 | 不 |
+| `pipeline/add_warp.py` | 裙子/布料从 matrix 刚体换成 warp 网格弯曲 | 不（读参数范围自动适配）|
 | `pipeline/install_env.sh` | 独立 venv（torch cu128 + 依赖） | 不 |
 
 ---
 
 ## 5. 作为 Hermes Agent 技能使用
 
-`skill/2d-puppet-rigging/` 是一个完整的 Hermes 技能包（SKILL.md + 7 篇 references + 8 个验收脚本 + landmark 模板）。
+`skill/2d-puppet-rigging/` 是一个完整的 Hermes 技能包（SKILL.md v3.0.0 + 11 篇 references + 8 个验收脚本 + landmark 模板）。
 装到本机：
 
 ```bash
@@ -224,6 +268,9 @@ python skill/2d-puppet-rigging/scripts/measure_gaps.py <帧目录>
 | Q 版转头幅度小 | 头大脖短，±30° 的像素位移只有 ~10 px，肉眼仍是正面。要真侧脸得换半身像模板 |
 | 单张图的层是硬切 | 每层互不重叠，「部件一动就露底」要靠重叠带 + 拆层前判定「切口被什么挡住」来避免 |
 | 表情系统需另配 | 部件能挂参数，但 6 个表情参数（眼开/嘴开/嘴形/眼球 XY）的绑定要按素材另做 |
+| **被遮挡部位不可恢复** | 尾巴在腿后、长发盖住身体：原图那里没有像素。部件一摆出原位必露洞，只能用「物理幅度 ≤ 遮挡余量」换（尾巴 ±24°→±10°） |
+| **整条裙子单图层劈不开** | 后裙摆该在腿后、前裙摆该在腿前，See-through 只给一个 `bottomwear`。必须人工劈成 `skirt_back` + `skirt_front` |
+| **坐姿/交叠腿不能自动拆** | 判据：`legs` bbox 宽 > 画布 50% 或左右像素比 >1.5 ⇒ 不拆，用整块小幅摆 |
 
 ### 6.1 ⚠ 识别缺陷：See-through 的语义分类不可靠
 
@@ -303,4 +350,5 @@ c07 补出 **7779 px**（其中头顶 `y[23,194]` 的发梢边缘 1163 px）。
 | [`docs/01_pipeline.md`](docs/01_pipeline.md) | 完整流程手册：素材要求、拆层、五类后处理问题、绑定、验收判据、命令速查 |
 | [`docs/02_psd_spec.md`](docs/02_psd_spec.md) | 给美工的 PSD 交付规范（层名、分组、留白）|
 | [`docs/03_setup.md`](docs/03_setup.md) | 环境部署：venv 隔离、torch cu128、模型目录 |
-| [`skill/2d-puppet-rigging/`](skill/2d-puppet-rigging/SKILL.md) | Hermes 技能：47 条规则 + 验收脚本 + landmark 模板 |
+| [`docs/04_known_issues.md`](docs/04_known_issues.md) | **已知问题与可修性**：8 条可自动修 / 4 条方法学限制 / warp vs matrix / 五条硬规则 |
+| [`skill/2d-puppet-rigging/`](skill/2d-puppet-rigging/SKILL.md) | Hermes 技能 v3.0.0：25 条铁律 + 11 篇 references + 验收脚本 + landmark 模板 |

@@ -1,7 +1,7 @@
 """通用 PSD → Iki 绑定器：枢轴全按 bbox 自动算，不写死任何素材的像素坐标。
 
 用法：
-    python build_iki.py <输入.psd> <输出.iki> [模型名]
+    python build_iki_generic.py <输入.psd> <输出.iki> [模型名]
 
 与 build_iki2.py 的区别：
   · ORDER 按语义表自动排（表外层按 alpha 面积降序补在末尾）
@@ -67,7 +67,13 @@ ORDER = [
     "backdrop",          # 兜底层：See-through 漏掉的内容，必须画在所有人下面
     "back hair", "tail",
     "leg_L", "leg_R", "legs",
-    "neck", "bottomwear", "handwear", "apron_top", "topwear",
+    "neck",
+    # 衣物层：从内到外
+    "bottomwear", "apron_top", "topwear",
+    # ★ 手与手持物必须排在 topwear 之后 —— 否则手被上衣盖住，
+    #   表现为「胳膊没了 / 手半透明」（c05）或「手握的杯子单独悬空」（c06：
+    #   杯子在最顶、手却被 topwear 压住，两者视觉上断开）。
+    "objects", "handwear",
     "headwear", "ear_L", "ear_R",
     "face", "nose", "mouth", "eyebrow", "eyewhite", "irides", "eyelash",
     "front hair",
@@ -350,7 +356,11 @@ def build(src_psd, out_iki, model_name="立绘傀儡模型"):
          ]},
     ]
     if "tail" in PIVOT:
-        deformers.append(mat("def_Tail", PIVOT["tail"], "ParamTailSway", 24, parent="def_Body"))
+        # ⚠ 尾巴幅度不能大：尾巴(order=2)在腿(order=3/4)后面，摆太开就会露出
+        # 「被腿挡住、原图没有像素」的区域 —— 现象是「尾巴上有腿的痕迹/残缺」。
+        # 实测 ±24° 时尾巴长约 300px，末端横移 sin24°*300 ≈ 122px，必然露洞。
+        # 收到 ±10°（末端 ~52px），保留摆动感但不越出遮挡范围。
+        deformers.append(mat("def_Tail", PIVOT["tail"], "ParamTailSway", 10, parent="def_Body"))
     if "ear_L" in PIVOT:
         deformers.append(mat("def_EarL", PIVOT["ear_L"], "ParamEarSwayL", 20, parent="def_Head"))
     if "ear_R" in PIVOT:
@@ -361,9 +371,11 @@ def build(src_psd, out_iki, model_name="立绘傀儡模型"):
         # 腿用 **translateX** 而不是 rotate：腿很长（07 图 350px），绕腿根转 1.3° 就会让
         # 脚踝横移 8px，把本来只有 1px 的两腿间隙拉成 19px（实测 y=1120 +18px）。
         # 腿基本被裙子盖住、只露小腿，整体平移不会变形，也不会撑开缝。
-        deformers.append(mat("def_LegL", PIVOT["leg_L"], "ParamLegSwayL", 3.0, parent="def_Body", channel="translateX"))
+        # ⚠ 幅度必须给足：曾用 ±3px，在 1280 画布里肉眼完全看不出（用户判定「腿脚没动」）。
+        #   参照头部 translateY ±10 的量级，腿给 ±9（整体平移，不改变两腿相对间距）。
+        deformers.append(mat("def_LegL", PIVOT["leg_L"], "ParamLegSwayL", 9.0, parent="def_Body", channel="translateX"))
     if "leg_R" in PIVOT:
-        deformers.append(mat("def_LegR", PIVOT["leg_R"], "ParamLegSwayR", 3.0, parent="def_Body", channel="translateX"))
+        deformers.append(mat("def_LegR", PIVOT["leg_R"], "ParamLegSwayR", 9.0, parent="def_Body", channel="translateX"))
     if "front hair" in PIVOT:
         deformers.append(mat("def_FrontHair", PIVOT["front hair"], "ParamHairFrontSway", 9, parent="def_Head"))
     if "back hair" in PIVOT:
@@ -378,19 +390,22 @@ def build(src_psd, out_iki, model_name="立绘傀儡模型"):
             {"parameter": "ParamAngleX", "weight": 1.0, "mode": "lag"},
             {"parameter": "ParamBodyAngleX", "weight": 0.9, "mode": "lag"},
             {"parameter": "ParamAngleZ", "weight": 0.6, "mode": "lag"}],
-            "output": {"parameter": "ParamTailSway", "scale": 420},
+            # scale 配合 deformer 幅度：±10° 时给 180，参数约到 ±0.8（≈±8°）
+            "output": {"parameter": "ParamTailSway", "scale": 180},
             "mass": 1, "stiffness": 22, "damping": 2.2})
     if "front hair" in PIVOT:
         physics.append({"id": "frontHair", "inputs": [
             {"parameter": "ParamAngleX", "weight": 0.55, "mode": "lag"},
             {"parameter": "ParamAmbientSway", "weight": 1.1, "mode": "lag"}],
-            "output": {"parameter": "ParamHairFrontSway", "scale": 16},
+            # 头发幅度也要收：长发盖住尾巴/身体，摆太开就露被遮挡的空洞
+            # （c06「尾巴被头发遮挡的部分没补全，活动后尾巴残缺」）。
+            "output": {"parameter": "ParamHairFrontSway", "scale": 11},
             "mass": 1, "stiffness": 52, "damping": 6})
     if "back hair" in PIVOT:
         physics.append({"id": "backHair", "inputs": [
             {"parameter": "ParamAngleX", "weight": 0.5, "mode": "lag"},
             {"parameter": "ParamAmbientSway", "weight": 1.0, "mode": "lag"}],
-            "output": {"parameter": "ParamHairBackSway", "scale": 12},
+            "output": {"parameter": "ParamHairBackSway", "scale": 8},
             "mass": 1, "stiffness": 30, "damping": 4})
     if "ear_L" in PIVOT:
         physics.append({"id": "earL", "inputs": [
@@ -418,13 +433,16 @@ def build(src_psd, out_iki, model_name="立绘傀儡模型"):
         physics.append({"id": "legL", "inputs": [
             {"parameter": "ParamBodyAngleX", "weight": 0.85, "mode": "lag"},
             {"parameter": "ParamAmbientSway", "weight": 0.25, "mode": "lag"}],
-            "output": {"parameter": "ParamLegSwayL", "scale": 8},
+            # scale 决定弹簧输出幅度：曾用 8，配合 deformer ±3px 实际只有 0.5px
+            # 位移，肉眼判定「腿脚没动」。现在 deformer ±9px，scale 给 38，
+            # 让参数能吃到 ±0.8 左右（≈±7px），动得出来又不会撑开两腿间隙。
+            "output": {"parameter": "ParamLegSwayL", "scale": 38},
             "mass": 1.0, "stiffness": 34, "damping": 4.6})
     if "leg_R" in PIVOT:
         physics.append({"id": "legR", "inputs": [
             {"parameter": "ParamAngleZ", "weight": 0.9, "mode": "lag"},
             {"parameter": "ParamAmbientSway", "weight": 0.5, "mode": "lag"}],
-            "output": {"parameter": "ParamLegSwayR", "scale": 8},
+            "output": {"parameter": "ParamLegSwayR", "scale": 38},
             "mass": 1.35, "stiffness": 56, "damping": 3.0})
 
     motions = {"Idle": [{
