@@ -113,6 +113,7 @@ cp out/mychar.iki <iki>/examples/player/public/model.iki
 | 两腿间纯黑 | 合并层 `p/out_a` 除出黑，RGB 应取原图 |
 | 拆腿后白洞 | See-through 漏层，要 backdrop |
 | 某件上有条暗线 | 谁盖在它上面（overlap + 更高 order）|
+| **某处颜色变浅 / 丢了一缕** | **语义错归或上层覆盖**——`handwear` 拿到正确深蓝、`topwear` 用浅紫盖住（三图实测 3879–6051px）；`front hair` 的 bbox 可能只到大半个头 |
 | 腿完全没有动画 | 层名归一化把 `leg_L` 变成 `leg l` |
 | 摆动时露出底色 | 两层颜色被 alpha 羽化掺混，或重叠带不够宽 |
 | 静态对但动态有缝 | 量「最大连续空白宽度」与原图对比 |
