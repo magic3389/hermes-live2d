@@ -230,6 +230,8 @@ python skill/2d-puppet-rigging/scripts/measure_gaps.py <帧目录>
 ## 7. 授权与引用
 
 本仓库代码与文档：**MIT**（见 [LICENSE](LICENSE)）。
+授权范围、第三方组件与商用提醒见 [NOTICE.md](NOTICE.md)。
+
 `assets/` 下的示例形象仅作效果演示，**不在** MIT 授权范围内，不得再分发或商用。
 
 流程依赖以下上游项目，权重与素材**均不随本仓库分发**：
