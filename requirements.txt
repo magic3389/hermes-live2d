@@ -1,0 +1,9 @@
+# 后处理 / 绑定所需的 Python 依赖（Python 3.12）
+# See-through 自身的依赖请用 ./see-through/requirements.txt（见 pipeline/install_env.sh）
+numpy>=2.0
+scipy>=1.13
+Pillow>=10.0
+psd-tools>=1.10
+
+# 可选：跑验收脚本里的 GIF 输出
+# imageio>=2.34

@@ -1,0 +1,32 @@
+# ---- 绝不上库的内容 ----
+# 上游仓库（用户自己 clone）
+see-through/
+venv/
+.venv/
+
+# 素材与产物：无授权、体积大
+input/
+out/
+*.psd
+*.psb
+*.iki
+*.npy
+*.npz
+*.onnx
+*.safetensors
+*.ckpt
+*.bin
+*.pth
+
+# 帧序列 / 临时图
+frames/
+idle_*/
+*.log
+
+# 系统 / 编辑器
+.DS_Store
+Thumbs.db
+__pycache__/
+*.pyc
+.vscode/
+.idea/

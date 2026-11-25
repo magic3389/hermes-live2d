@@ -1,0 +1,37 @@
+{
+  "_note": "cutLayersFromIllustration 的完整骨架。坐标是 1100 宽画布像素（用 viewIllustrationGrid 报的 canvas）。L = 角色的左眼 = 观众右边。标 _required 的缺一个就 REFUSED。",
+  "_required": ["samples.hair.base", "samples.skin.base", "eyes.L", "eyes.R", "mouth.box", "mouth.cornerL", "mouth.cornerR", "frontHair", "skull", "shellLower", "skinSeeds", "bodySeeds", "neckTopY"],
+  "_optional": ["brows", "nose", "sideHair", "backgroundSeeds", "paintSeeds", "bodyOnly", "customParts"],
+  "samples": {
+    "hair": {
+      "base": [[0, 0], [0, 0]],
+      "shadow": [],
+      "highlight": []
+    },
+    "skin": {
+      "base": [[0, 0]],
+      "shadow": []
+    }
+  },
+  "eyes": {
+    "L": { "box": [0, 0, 0, 0], "iris": { "cx": 0, "cy": 0, "rx": 0, "ry": 0 } },
+    "R": { "box": [0, 0, 0, 0], "iris": { "cx": 0, "cy": 0, "rx": 0, "ry": 0 } }
+  },
+  "mouth": { "box": [0, 0, 0, 0], "cornerL": [0, 0], "cornerR": [0, 0] },
+  "frontHair": [[0, 0], [0, 0], [0, 0]],
+  "skull": [[0, 0], [0, 0], [0, 0]],
+  "shellLower": [[0, 0], [0, 0]],
+  "skinSeeds": [[0, 0]],
+  "bodySeeds": [[0, 0]],
+  "neckTopY": 0,
+
+  "brows": {
+    "L": { "line": [[0, 0], [0, 0]], "halfWidth": 6, "tailHalfWidth": 4 },
+    "R": { "line": [[0, 0], [0, 0]], "halfWidth": 6, "tailHalfWidth": 4 }
+  },
+  "nose": { "box": [0, 0, 0, 0] },
+  "sideHair": { "L": [[0, 0], [0, 0], [0, 0]], "R": [[0, 0], [0, 0], [0, 0]] },
+  "backgroundSeeds": [],
+  "paintSeeds": [],
+  "bodyOnly": []
+}
