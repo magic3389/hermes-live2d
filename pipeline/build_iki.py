@@ -1,7 +1,7 @@
 """通用 PSD → Iki 绑定器：枢轴全按 bbox 自动算，不写死任何素材的像素坐标。
 
 用法：
-    python build_iki_generic.py <输入.psd> <输出.iki> [模型名]
+    python build_iki.py <输入.psd> <输出.iki> [模型名]
 
 与 build_iki2.py 的区别：
   · ORDER 按语义表自动排（表外层按 alpha 面积降序补在末尾）

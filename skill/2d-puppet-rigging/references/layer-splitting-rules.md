@@ -137,7 +137,7 @@ SKILL.md 第 8 条（连通域）、第 12 条（keep_as_is）、第 13 条（1:
 
 以上各条是「逐例踩出来的」，这一节把它们排成一条**任何素材都能跑**的流水线。
 
-### 7.1 后处理：`postprocess_generic.py <seethrough.psd> <原图png> <输出.psd> [--legs <mask前缀>]`
+### 7.1 后处理：`postprocess.py <seethrough.psd> <原图png> <输出.psd> [--legs <mask前缀>]`
 
 处理顺序（顺序本身有依赖，不要打乱）：
 
@@ -179,7 +179,7 @@ SKILL.md 第 8 条（连通域）、第 12 条（keep_as_is）、第 13 条（1:
 ⚠ 「叠加 <0.99」这个数字**要用「低于原 alpha 0.1 以上」来判真漏**，否则会把本来半透明的抗锯齿边全算成漏
 （实测 2109px 报告里只有 7px 是真漏）。
 
-### 7.3 绑定：`build_iki_generic.py <split.psd> <输出.iki> [模型名]`
+### 7.3 绑定：`build_iki.py <split.psd> <输出.iki> [模型名]`
 
 枢轴全按 bbox 推导，不写死坐标：
 `back hair / front hair / bottomwear / tail / leg_*` = **bbox 顶部中心**；

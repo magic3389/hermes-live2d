@@ -1,7 +1,7 @@
 """通用后处理：See-through 17 层 → 可用 PSD。
 
 用法：
-    python postprocess_generic.py <seethrough.psd> <原图png> <输出.psd>
+    python postprocess.py <seethrough.psd> <原图png> <输出.psd>
 
 做三件事（都是 c04 上踩出来的必要处理）：
   1) 颜色换回原图 —— See-through 合成比原图整体偏亮约 25，直接用就是"蒙了一层白纱"。

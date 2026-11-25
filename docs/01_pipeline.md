@@ -112,7 +112,7 @@ arr[(a > 0) & (a < 60), 3] = 0
 
 ## 3. 第二步：后处理（关键，决定质量上限）
 
-> 通用脚本：`postprocess_generic.py <seethrough.psd> <原图png> <输出.psd>`
+> 通用脚本：`postprocess.py <seethrough.psd> <原图png> <输出.psd>`
 > 15 号图实测：合成差 **21.26 → 5.30**（c04 是 4.76）
 
 后处理要解决五类问题，按优先级：
@@ -179,7 +179,7 @@ hole = (~covered) & (ref.min(axis=2) < 245)
 ```
 
 实测 07 图补了 7779px，合成差 6.47 → **5.30**。
-`build_iki_generic.py` 的 ORDER 里 `backdrop` 必须排第一（否则会盖住一切）。
+`build_iki.py` 的 ORDER 里 `backdrop` 必须排第一（否则会盖住一切）。
 
 ### 3.6 ⚠ 层尺寸不等于画布
 
@@ -383,20 +383,20 @@ http://127.0.0.1:5200/standalone.html?nodrive=1  # 静态（冻结，用于像�
 bash run_local.sh ../input/xxx_square1280.png 1280 30
 
 # 2) 后处理（通用，无需改代码）
-python postprocess_generic.py \
+python postprocess.py \
     out/layerdiff_output/xxx_square1280.psd \
     input/xxx_square1280.png \
     out/layerdiff_output/xxx_split.psd
 
 # 2.5) 需要腿分开摆时：先自动拆腿，再带 --legs 重跑后处理
 python auto_split_legs.py out/layerdiff_output/xxx_split.psd input/xxx_square1280.png out/pose/xxx
-python postprocess_generic.py \
+python postprocess.py \
     out/layerdiff_output/xxx_square1280.psd \
     input/xxx_square1280.png \
     out/layerdiff_output/xxx_split.psd --legs out/pose/xxx
 
 # 4) 绑定（通用，枢轴全自动）
-python build_iki_generic.py \
+python build_iki.py \
     out/layerdiff_output/xxx_split.psd \
     out/xxx_hand.iki "模型名"
 
@@ -430,7 +430,7 @@ cp out/xxx_hand.iki <iki>/examples/player/public/model_hand.iki
 
 ### 自动枢轴的可靠性
 
-`build_iki_generic.py` 全部用 bbox 推导，15 号图实测：
+`build_iki.py` 全部用 bbox 推导，15 号图实测：
 
 ```
 back hair    (-64.0,  581.0)    bbox 顶部中心 = 发根
