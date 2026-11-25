@@ -11,7 +11,7 @@
 
 用法:
     python apose_check.py <png> [png ...]
-    python apose_check.py --batch "<ComfyUI>/output/apose_*.png"
+    python apose_check.py --batch "C:/ComfyUI/output/dafeiyu_apose_*.png"
 """
 import glob
 import sys

@@ -35,7 +35,7 @@ B 路线两种失败都被用户当场退回（"个个画成了肥胖侏儒"）�
 UnetLoaderGGUF(qwen-image-2.1-UC-Q8_0.gguf)
 CLIPLoader(qwen3vl_8b_int8_convrot.safetensors, type="qwen_image", device="default")
 VAELoader(qwen_image_2.1_vae_bf16.safetensors)
-LoadImage(<参考原图，必须先在 <ComfyUI>/input/>)
+LoadImage(<参考原图，必须先在 C:/ComfyUI/input/>)
 TextEncodeQwenImage21(clip, prompt, negative_prompt="", resolution=1024, vae, images.image_1=[LoadImage,0])
 EmptyLatentImage(w,h)  →  KSampler(euler / simple / 30 步 / cfg=1 / denoise=1)
 VAEDecode → SaveImage
@@ -244,7 +244,7 @@ VLM 看拼图小图会给出自相矛盾的结论（同一张图两次判「叉�
 3. 纯白占比 50–80%（过高说明角色太小或被吃掉）
 4. 三段占比 ≥75%
 
-批量：`python scripts/apose_check.py --batch "<ComfyUI>/output/<prefix>_*.png"`
+批量：`python scripts/apose_check.py --batch "C:/ComfyUI/output/<prefix>_*.png"`
 
 ---
 

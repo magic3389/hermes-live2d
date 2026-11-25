@@ -9,7 +9,7 @@
 
 ## 部署（本机已验证的形态）
 
-独立 venv，**绝不装进 <ComfyUI> 的 venv**（那套环境有别的节点依赖，冲突就整片崩）：
+独立 venv，**绝不装进 C:\ComfyUI 的 venv**（那套环境有别的节点依赖，冲突就整片崩）：
 
 ```bash
 git clone --depth 1 https://github.com/shitagaki-lab/see-through.git

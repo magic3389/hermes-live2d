@@ -121,7 +121,7 @@ else:
 
 **实测过的生成式拆层工具：See-through**（SIGGRAPH 2026，`shitagaki-lab/see-through`）
 
-部署位置自选（独立 venv，与 ComfyUI 隔离），
+本机部署点：`D:\hermes\projects\seethrough_2026-11-21`（独立 venv，与 ComfyUI 隔离），
 完整命令与验收记录见该目录 `00_执行文档.md`。用之前必须知道的三件事：
 
 1. **它重画，不搬像素**。输出层是 SDXL 重建的：角色认得出来、结构对，但眼高光、缎边、碗筷这类细节会糊，
