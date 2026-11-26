@@ -165,6 +165,26 @@ warp 格式错在播放器里只表现成 `window.model === undefined`、画布�
 
 ## 4. 快速开始
 
+> **第一次用，先看 [`docs/05_usage.md`](docs/05_usage.md)** —— 那里有完整的三条路径：
+> ①让 Agent 一句话自动装好　②手工导入 Hermes 技能　③纯命令行跑一遍。
+> 含全流程需求（硬件/素材/依赖）、Agent 操作手册（可验证的逐步判据）、
+> 「用户描述 → 技术根因」对照表、常见问题。
+
+### 最小可用路径（让 Agent 自己装）
+
+把这段发给你的 Hermes Agent：
+
+```
+从这个仓库安装 live2d 技能：https://github.com/magic3389/hermes-live2d
+1. git clone 到临时目录
+2. 把 skill/2d-puppet-rigging/ 复制到 <HERMES_HOME>/skills/game-design/
+3. 用 skill_view(name='2d-puppet-rigging') 确认能读到 SKILL.md
+4. 报告：技能版本号、references 篇数、scripts 个数
+不要跑生成，只装技能。
+```
+
+装完说「把这张图做成 live2d」，Agent 会按技能里的判据执行。
+
 ```bash
 git clone <this-repo> && cd hermes-live2d
 
@@ -233,7 +253,7 @@ cp out/mychar_warp.iki <iki>/examples/player/public/model.iki
 ## 5. 作为 Hermes Agent 技能使用
 
 `skill/2d-puppet-rigging/` 是一个完整的 Hermes 技能包（SKILL.md v3.0.0 + 11 篇 references + 8 个验收脚本 + landmark 模板）。
-装到本机：
+装到本机（逐步说明与 Agent 自动安装提示词见 [`docs/05_usage.md`](docs/05_usage.md)）：
 
 ```bash
 cp -r skill/2d-puppet-rigging <HERMES_HOME>/skills/game-design/
@@ -351,4 +371,6 @@ c07 补出 **7779 px**（其中头顶 `y[23,194]` 的发梢边缘 1163 px）。
 | [`docs/02_psd_spec.md`](docs/02_psd_spec.md) | 给美工的 PSD 交付规范（层名、分组、留白）|
 | [`docs/03_setup.md`](docs/03_setup.md) | 环境部署：venv 隔离、torch cu128、模型目录 |
 | [`docs/04_known_issues.md`](docs/04_known_issues.md) | **已知问题与可修性**：8 条可自动修 / 4 条方法学限制 / warp vs matrix / 五条硬规则 |
+| [`docs/05_usage.md`](docs/05_usage.md) | **使用手册**：三条上手路径、全流程需求、Agent 操作手册、用户描述→根因对照、FAQ |
+| [`validate_iki.mjs`](validate_iki.mjs) | 零依赖 `.iki` 结构校验（warp 网格规则性 / keyform 量程 / 引用完整性）|
 | [`skill/2d-puppet-rigging/`](skill/2d-puppet-rigging/SKILL.md) | Hermes 技能 v3.0.0：25 条铁律 + 11 篇 references + 验收脚本 + landmark 模板 |
