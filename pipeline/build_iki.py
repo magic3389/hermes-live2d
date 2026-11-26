@@ -339,20 +339,29 @@ def build(src_psd, out_iki, model_name="立绘傀儡模型"):
     body_y = bb("bottomwear")[1] if "bottomwear" in blocks else H * 0.65
     body_x = (bb("bottomwear")[0] + bb("bottomwear")[2]) / 2 if "bottomwear" in blocks else W / 2
 
+    # ⚠ 顺序有意义：def_Body 必须排在 def_Head 前面。
+    # 引擎按数组顺序解析，parent 写在后面时可能拿到 undefined。
+    # 同时 def_Head 的 parent **必须是 def_Body** —— 两者各自独立时，
+    # 身体 translateX ±16 而头不动 ⇒ 脖子/头直接错开，驱动后出现成片白块
+    # （实测露洞 42,000px），用户读成「手/头发那边透明了」。
     deformers = [
-        {"kind": "matrix", "id": "def_Head",
-         "pivot": {"x": px2mx(body_x if "bottomwear" not in blocks else (bb("neck")[0] + bb("neck")[2]) / 2
-                              if "neck" in blocks else body_x), "y": px2my(neck_y)},
-         "bindings": [
-             {"parameter": "ParamAngleX", "channel": "rotate", "from": -11, "to": 11},
-             {"parameter": "ParamAngleY", "channel": "translateY", "from": -10, "to": 10},
-             {"parameter": "ParamAngleZ", "channel": "rotate", "from": -9, "to": 9},
-         ]},
         {"kind": "matrix", "id": "def_Body",
          "pivot": {"x": px2mx(body_x), "y": px2my(body_y)},
          "bindings": [
              {"parameter": "ParamBodyAngleX", "channel": "translateX", "from": -16, "to": 16},
              {"parameter": "ParamBodyAngleZ", "channel": "rotate", "from": -4, "to": 4},
+         ]},
+        {"kind": "matrix", "id": "def_Head",
+         "parent": "def_Body",
+         "pivot": {"x": px2mx(body_x if "bottomwear" not in blocks else (bb("neck")[0] + bb("neck")[2]) / 2
+                              if "neck" in blocks else body_x), "y": px2my(neck_y)},
+         "bindings": [
+             # ⚠ 头转幅度直接决定「头发甩出去多远」：发长 496px 时转 11° 让发梢
+             # 横移 sin(11°)×496 ≈ 95px，而头发后面是空 backdrop ⇒ 露出成片白块，
+             # 用户读成「手/头发那边透明了」。收到 ±8°（≈69px）。
+             {"parameter": "ParamAngleX", "channel": "rotate", "from": -8, "to": 8},
+             {"parameter": "ParamAngleY", "channel": "translateY", "from": -10, "to": 10},
+             {"parameter": "ParamAngleZ", "channel": "rotate", "from": -9, "to": 9},
          ]},
     ]
     if "tail" in PIVOT:
@@ -377,9 +386,11 @@ def build(src_psd, out_iki, model_name="立绘傀儡模型"):
     if "leg_R" in PIVOT:
         deformers.append(mat("def_LegR", PIVOT["leg_R"], "ParamLegSwayR", 9.0, parent="def_Body", channel="translateX"))
     if "front hair" in PIVOT:
-        deformers.append(mat("def_FrontHair", PIVOT["front hair"], "ParamHairFrontSway", 9, parent="def_Head"))
+        # 头发是**刚性跟随**头的（parent=def_Head），physics 只在其上叠加。
+        # 相对旋转给大了等于把「头转幅度」翻倍，发梢甩两倍距离 ⇒ 断口更多。
+        deformers.append(mat("def_FrontHair", PIVOT["front hair"], "ParamHairFrontSway", 5, parent="def_Head"))
     if "back hair" in PIVOT:
-        deformers.append(mat("def_BackHair", PIVOT["back hair"], "ParamHairBackSway", 7, parent="def_Head"))
+        deformers.append(mat("def_BackHair", PIVOT["back hair"], "ParamHairBackSway", 4, parent="def_Head"))
 
     # ---------- 8) 物理 ----------
     # 输出 ≈ (x − L) × scale：振幅靠 scale，不靠 weight。

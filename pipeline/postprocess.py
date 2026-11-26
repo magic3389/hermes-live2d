@@ -49,7 +49,8 @@ def norm(name):
     return alias.get(k, k.replace("_", " "))
 
 
-def main(src_psd, src_img, out_psd, legmask_prefix=None, reclaim_box=None, sleeve_bands=None, skirt_zone_y0=None):
+def main(src_psd, src_img, out_psd, legmask_prefix=None, reclaim_box=None,
+         sleeve_bands=None, skirt_zone_y0=None, reclaim_hand=None):
     psd = PSDImage.open(src_psd)
     W, H = psd.width, psd.height
     ref = np.asarray(Image.open(src_img).convert("RGB")).astype(np.int16)
@@ -430,6 +431,64 @@ def main(src_psd, src_img, out_psd, legmask_prefix=None, reclaim_box=None, sleev
                 _tl[_hit, 3] = 0
                 print(f"  tail 里混的腿部像素挖掉: {int(_hit.sum())}px（否则腿痕跟着尾巴摆）")
 
+    # ---- 2.13) 手层里的头发挖掉（修「右边的手透明了」）-----------------------
+    # See-through 会把紫黑长发错归给 handwear（实测 7,421px 原图色 (96,64,96)/(64,32,64)），
+    # 并把它涂成手/袖套的浅色、alpha=255。handwear 的 order 高于 back hair，
+    # ⇒ 头发位置出现一块「不跟头发动的浅色块」，用户读成「手那边透明/破洞」。
+    #
+    # ⚠ 不能只「取原图色」：颜色虽然对了，但那块仍挂在 def_Body 上，
+    #   头发一动就错位，比原来的浅色块更难看出问题所在。
+    #   必须挖掉（alpha=0）让 back hair 露出来，再把该处的 RGB 补给 back hair。
+    #
+    # 判据三条同时成立：①alpha 满 ②原图偏暗（min<145）③原图是紫黑系
+    # （紫发的特征：B ≥ R-12 且 R-B 很小；暖色皮肤与金发不满足）。
+    _hd = layers.get("handwear")
+    if _hd is not None and "back hair" in layers and (_hd[:, :, 3] > 0).any():
+        _dif_h = np.abs(_hd[:, :, :3].astype(np.int16) - ref.astype(np.int16)).max(axis=2)
+        _darkp = (ref.min(axis=2) < 145) & \
+                 (ref[:, :, 2].astype(np.int16) >= ref[:, :, 0].astype(np.int16) - 12) & \
+                 ((ref[:, :, 0].astype(np.int16) - ref[:, :, 2].astype(np.int16)) < 32)
+        _hit_h = (_hd[:, :, 3] >= 250) & _darkp & (_dif_h > 90)
+        if _hit_h.sum() > 200:
+            _hd[_hit_h, 3] = 0
+            _bh = layers["back hair"]
+            _need_h = _hit_h & ~(_bh[:, :, 3] > 250)
+            _bh[_need_h, :3] = ref[_need_h].astype(np.uint8)
+            _bh[_need_h, 3] = 255
+            print(f"  handwear 里的头发挖掉: {int(_hit_h.sum())}px → 还给 back hair"
+                  f"（其中补色 {int(_need_h.sum())}px）")
+
+    # ---- 2.14) 把被别的层吃掉的「手」收回 handwear（修「看不到手」）-----------
+    # See-through 会把手臂/手判给衣服层，甚至整块丢掉。实测一张双手叉腰的立绘：
+    #   handwear 左半 26,007px / 右半 11,814px（比值 0.45，姿势是对称的 ⇒ 右手丢了）
+    #   原图手区的浅色像素去向：bottomwear 7,359px + **没有任何层 3,444px** + handwear 3,060px
+    # 用户看到的不是「透明」而是「手不见了」，静态色差也很小（衣服层用了相近的浅色）。
+    #
+    # 判据：只在给的几何框内 + 原图是浅色（袖套/皮肤），把别的语义层在该处挖掉，
+    # 再把原图色写进 handwear。必须给框——颜色上白袖套和白上衣分不开。
+    if reclaim_hand and "handwear" in layers:
+        _x0, _y0, _x1, _y1 = reclaim_hand
+        _zh = np.zeros((H, W), dtype=bool)
+        _zh[max(0, _y0):min(H, _y1), max(0, _x0):min(W, _x1)] = True
+        _lightref = (ref.min(axis=2) > 150) & (ref.mean(axis=2) > 170)
+        _target = _zh & _lightref
+        _hw = layers["handwear"]
+        _taken = 0
+        for _n in ("bottomwear", "topwear", "legs", "leg_L", "leg_R", "neck", "face"):
+            if _n not in layers:
+                continue
+            _arr = layers[_n]
+            _hit_o = _target & (_arr[:, :, 3] > 0)
+            if _hit_o.sum() > 100:
+                _arr[_hit_o, 3] = 0
+                _taken += int(_hit_o.sum())
+        _need_hw = _target & ~(_hw[:, :, 3] > 250)
+        _hw[_need_hw, :3] = ref[_need_hw].astype(np.uint8)
+        _hw[_need_hw, 3] = 255
+        if _taken or _need_hw.sum():
+            print(f"  --reclaim-hand {reclaim_hand}: 从别的层挖回 {_taken}px，"
+                  f"补进 handwear {int(_need_hw.sum())}px")
+
     if hole.any():
         from scipy import ndimage as _ndi
         # 去掉零星噪点（原图 JPEG 压缩在纯白背景上留下的脏点）
@@ -505,10 +564,6 @@ if __name__ == "__main__":
     if len(sys.argv) < 4:
         print(__doc__)
         print("\n可选：--legs <mask前缀>   把 legs 拆成 leg_L/leg_R（前缀需有 _legmask_L.npy/_R.npy）")
-        print("      --reclaim-hair x0,y0,x1,y1                 把被衣服层吃掉的头发补回 back hair")
-        print("      --sleeve-band x_sh,x_wr,y0,y1,half         （可重复）袖带内 bottomwear 的袖子像素挖掉")
-        print("                                                y1 取腕线，别拖到裙摆区（否则裙子被当成袖子保护住）")
-        print("      --skirt-zone y0                            裙子几何区：区内 topwear 内容并回 bottomwear")
         sys.exit(1)
     _legs = None
     if "--legs" in sys.argv:
@@ -532,10 +587,17 @@ if __name__ == "__main__":
         _bands.append(_v)
         sys.argv = sys.argv[:_i] + sys.argv[_i + 2:]
 
+    _rhand = None
+    if "--reclaim-hand" in sys.argv:
+        _i = sys.argv.index("--reclaim-hand")
+        _rhand = tuple(int(v) for v in sys.argv[_i + 1].split(","))
+        assert len(_rhand) == 4, "--reclaim-hand 需要 x0,y0,x1,y1"
+        sys.argv = sys.argv[:_i] + sys.argv[_i + 2:]
+
     _sky0 = None
     if "--skirt-zone" in sys.argv:
         _i = sys.argv.index("--skirt-zone")
         _sky0 = int(sys.argv[_i + 1])
         sys.argv = sys.argv[:_i] + sys.argv[_i + 2:]
 
-    main(sys.argv[1], sys.argv[2], sys.argv[3], _legs, _rec, _bands or None, _sky0)
+    main(sys.argv[1], sys.argv[2], sys.argv[3], _legs, _rec, _bands or None, _sky0, _rhand)

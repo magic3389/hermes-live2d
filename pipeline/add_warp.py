@@ -33,21 +33,45 @@ def grid_points(x0, y0, x1, y1, cols, rows):
     return pts
 
 
-def bend_offsets(cols, rows, amp_x, curve=1.6, lean=0.0):
+def bend_offsets(cols, rows, amp_x, curve=1.6, lean=0.0,
+                 grid_y_top=None, grid_y_bot=None, bend_y_top=None, bend_y_bot=None):
     """一次「弯曲」的逐点偏移。
 
     amp_x: 最底行的 x 位移（正=向右）
     curve: 指数，越大则顶部越不动、底部越明显（布料上端钉在腰上）
     lean:  整体 y 方向的抬升/下沉比例（0=纯横向弯）
+
+    grid_y_top / grid_y_bot: 网格覆盖的 model-y 上/下界
+    bend_y_top / bend_y_bot: **只在 [bend_y_bot, bend_y_top] 内产生位移**
+
+    为什么需要 bend zone：层的 bbox 往往远大于真正要弯的布料。
+    实测一张立绘的 `bottomwear` bbox 是 canvas y[24,719]，但粉色裙子实际只在
+    y[500,699]，上半段是混进来的粉领结。网格必须覆盖整个 part（否则上半段
+    不参与变形、和下层叠成「一层动一层不动」），但**弯曲只能作用在裙子那一段**——
+    否则按整条高度算曲线，裙子只吃到 3–4% 的位移，看起来就是整块平移。
     """
     off = []
     for r in range(rows + 1):
-        k = (r / rows) ** curve          # r=0 顶 → 0；r=rows 底 → 1
+        if grid_y_top is not None and grid_y_bot is not None:
+            y = grid_y_top - (grid_y_top - grid_y_bot) * r / rows
+        else:
+            y = None
+
+        if bend_y_top is not None and y is not None:
+            if y > bend_y_top:
+                k = 0.0                      # 弯曲区之上：不动
+            elif y < bend_y_bot:
+                k = 1.0                      # 弯曲区之下：满位移
+            else:
+                t = (bend_y_top - y) / max(1e-6, bend_y_top - bend_y_bot)
+                k = t ** curve
+        else:
+            k = (r / rows) ** curve
+
         dx = amp_x * k
         dy = lean * k
         for c in range(cols + 1):
-            # 横向再加一点「中间鼓」的弧度，让弯曲不是纯剪切
-            mid = 1.0 - abs((c / cols) - 0.5) * 2.0
+            mid = 1.0 - abs((c / cols) - 0.5) * 2.0     # 中间鼓、两侧收
             off += [round(dx * (0.55 + 0.45 * mid), 2), round(dy * mid, 2)]
     return off
 
@@ -59,7 +83,7 @@ def part_bbox(part):
     return (tx - tw / 2, ty - th / 2, tx + tw / 2, ty + th / 2)
 
 
-def add_skirt_warp(model, top_ratio=1.0):
+def add_skirt_warp(model, top_ratio=1.0, bend_zone=None, canvas_h=1280, amp_override=None):
     """把 bottomwear 从 matrix 刚体换成 warp 网格弯曲。
 
     top_ratio **必须是 1.0（覆盖整个 part）**。曾用 0.55 只覆盖下摆，
@@ -81,6 +105,20 @@ def add_skirt_warp(model, top_ratio=1.0):
 
     wid = x1 - x0
     amp = max(10.0, min(34.0, wid * 0.045))     # 摆幅按裙子宽度取，别太夸张
+    if amp_override is not None:
+        # 按 part 宽度的 4.5% 算常常偏小（一张 492px 宽的裙子只得到 23px，约 4.7%，
+        # 用户会读成「整块平移」）。给 --amp 直接指定，经验值：裙子宽度的 8–12%。
+        amp = float(amp_override)
+
+    # bend_zone = (canvas_y0, canvas_y1) 给的是**裙子真正所在的画布区间**。
+    # 没有它就只能按整条 bbox 算曲线，裙子会被稀释成看不出弯曲。
+    by_top = by_bot = None
+    if bend_zone:
+        cy0, cy1 = bend_zone
+        by_top = canvas_h / 2 - cy0          # canvas → model（+y 向上）
+        by_bot = canvas_h / 2 - cy1
+    print(f"  弯曲区 model y[{by_bot if by_bot is not None else 'N/A'},"
+          f"{by_top if by_top is not None else 'N/A'}]（canvas {bend_zone}）")
 
     # ⚠ keyform 的 value 必须是**参数的 own-range 值**（NOT 归一化），
     # 而且要与参数声明的 min/max 对齐。曾写死 -1/0/1，而 ParamSkirtSway 的
@@ -104,9 +142,11 @@ def add_skirt_warp(model, top_ratio=1.0):
         "warps": [{
             "parameter": "ParamSkirtSway",
             "keyforms": [
-                {"value": _vmin, "offsets": bend_offsets(COLS, ROWS, -amp)},
+                {"value": _vmin, "offsets": bend_offsets(COLS, ROWS, -amp, grid_y_top=gy1,
+                    grid_y_bot=y0, bend_y_top=by_top, bend_y_bot=by_bot)},
                 {"value": 0.0, "offsets": [0.0] * ((COLS + 1) * (ROWS + 1) * 2)},
-                {"value": _vmax, "offsets": bend_offsets(COLS, ROWS, amp)},
+                {"value": _vmax, "offsets": bend_offsets(COLS, ROWS, amp, grid_y_top=gy1,
+                    grid_y_bot=y0, bend_y_top=by_top, bend_y_bot=by_bot)},
             ],
         }],
     }
@@ -142,4 +182,23 @@ if __name__ == "__main__":
     tgt = ["skirt"]
     if "--target" in sys.argv:
         tgt = sys.argv[sys.argv.index("--target") + 1].split(",")
-    main(sys.argv[1], sys.argv[2], tgt)
+
+    # --bend-zone canvas_y0,canvas_y1  裙子真正的画布纵向范围（强烈建议给）
+    bz = None
+    if "--bend-zone" in sys.argv:
+        bz = tuple(int(v) for v in sys.argv[sys.argv.index("--bend-zone") + 1].split(","))
+        assert len(bz) == 2, "--bend-zone 需要 canvas_y0,canvas_y1"
+
+    ch = 1280
+    if "--canvas-h" in sys.argv:
+        ch = int(sys.argv[sys.argv.index("--canvas-h") + 1])
+
+    amp = None
+    if "--amp" in sys.argv:
+        amp = float(sys.argv[sys.argv.index("--amp") + 1])
+
+    model = json.load(open(sys.argv[1], encoding="utf-8"))
+    if "skirt" in tgt:
+        add_skirt_warp(model, bend_zone=bz, canvas_h=ch, amp_override=amp)
+    json.dump(model, open(sys.argv[2], "w", encoding="utf-8"), ensure_ascii=False)
+    print(f"写出 {sys.argv[2]}")
